@@ -1043,6 +1043,14 @@ class BirthdayDashboard {
                     // Check if updated birthday date is today - if so, send notification
                     this.checkAndSendUpdatedBirthdayNotification(updatedBirthday);
                     
+                    // If birthday has contact info (phone or email), show message sending popup after update
+                    // This allows user to send message immediately after updating
+                    if (updatedBirthday.phoneNumber || updatedBirthday.email) {
+                        setTimeout(() => {
+                            this.showBirthdayPopup(updatedBirthday);
+                        }, 2500); // Show after the success message and notification
+                    }
+                    
                     // Navigate back to birthdays section
                     setTimeout(() => {
                         this.navigateToSection('birthdays');
@@ -1922,39 +1930,43 @@ class BirthdayDashboard {
                 phoneNumber: birthday.phoneNumber,
                 email: birthday.email,
                 message: defaultMessage,
-                name: birthday.name
+                name: birthday.name,
+                date: birthday.date
             }
         });
 
         // Handle notification click - open WhatsApp or Gmail directly in ONE CLICK!
+        // Store reference to dashboard instance for use in notification click handler
+        const dashboardInstance = this;
         notification.onclick = (event) => {
             event.preventDefault();
             window.focus();
             
             const data = notification.data;
-            const birthday = this.birthdays.find(b => (b.id || b._id) === data.birthdayId) || {
-                id: data.birthdayId,
-                name: data.name,
-                phoneNumber: data.phoneNumber,
-                email: data.email
-            };
-            
-            // If both phone and email exist, show popup to let user choose
-            if (data.phoneNumber && data.email) {
-                this.showBirthdayPopup(birthday);
-            } else if (data.phoneNumber) {
-                // If only phone number exists, open WhatsApp DIRECTLY with pre-filled message
-                // This is the ONE-CLICK action the user requested!
-                const whatsappUrl = this.createWhatsAppLink(data.phoneNumber, data.message);
-                window.open(whatsappUrl, '_blank');
-            } else if (data.email) {
-                // If only email exists, open Gmail DIRECTLY with pre-filled message
-                const gmailUrl = this.createGmailLink(data.email, data.name, data.message);
-                window.open(gmailUrl, '_blank');
-            } else {
-                // If no contact info, show popup to enter manually
-                this.showBirthdayPopup(birthday);
+            if (!data) {
+                console.error('Notification data is missing');
+                notification.close();
+                return;
             }
+            
+            // Find birthday from current list or use data from notification
+            let birthday = dashboardInstance.birthdays.find(b => (b.id || b._id) === data.birthdayId);
+            
+            // If not found in current list, create from notification data
+            if (!birthday) {
+                birthday = {
+                    id: data.birthdayId,
+                    _id: data.birthdayId,
+                    name: data.name,
+                    phoneNumber: data.phoneNumber,
+                    email: data.email,
+                    date: data.date || new Date().toISOString().split('T')[0]
+                };
+            }
+            
+            // Always show popup to let user choose WhatsApp or Gmail
+            // This ensures the message sending option is always available
+            dashboardInstance.showBirthdayPopup(birthday);
             
             notification.close();
         };
@@ -2053,9 +2065,13 @@ class BirthdayDashboard {
             padding: 30px;
             max-width: 450px;
             width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
             animation: slideUp 0.3s ease;
             text-align: center;
+            position: relative;
+            z-index: 10003;
         `;
 
         // Default birthday message
